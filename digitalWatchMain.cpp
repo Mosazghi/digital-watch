@@ -10,7 +10,7 @@
 
 #define DS1307_ADDR 0X68        //< DS1307 slave address 
 
-TM1637Display display(CLK, DIO) // Init TM1637  
+TM1637Display display(CLK, DIO); // Init TM1637  
 
 
 /**
@@ -24,6 +24,11 @@ struct RTC_time_t {
 
 RTC_time_t currentTime;
 
+
+// Timer variables
+unsigned long previousMillis = 0UL;
+unsigned long interval = 1000UL;
+
 void init_system(); 
 void ds1307_get_time(RTC_time_t* rtc_time); 
 void ds1307_set_time(RTC_time_t* rtc_time);
@@ -34,19 +39,28 @@ uint8_t bcdToDecd(uint8_t val);
  * Main program 
  */
 int main(void) {
-	init_system(); // Init. the system  
+  init_system(); // Init. the system  
 
-	ds1307_get_time(&currentTime); // Get current time 
-  	display.showNumberDecEx(currentTime.hours * 100 + currentTime.minutes,
-		       	       (currentTime.seconds % 2) ? 0x00: 0x80, true);
-  	delay(1000);
+  while(1) {
+    unsigned long currentMillis = millis();
 
+    if(currentMillis - previousMillis > interval) {
+      ds1307_get_time(&currentTime); // Get current time 
+      display.showNumberDecEx(currentTime.hours * 100 + currentTime.minutes, //Display time 
+                          (currentTime.seconds % 2) ? 0x00: 0x80, true);
+    }
+    previousMillis = currentMillis;
+  }
 }
 
+/**
+ * Init. the system
+ */
 void init_system() {
   #ifdef DEBUG 
     Debug.begin();
   #endif 
+  
   // Setup TinyWire I2C
   TinyWireM.begin();
 
@@ -54,7 +68,7 @@ void init_system() {
   
   /**
    * Sets desired time (current time) 
-   * NOTE - uncomment after configuring 
+   * NOTE - uncomment after setting the time  
   */   
   currentTime.hours = 00; 
   currentTime.minutes= 06; 
@@ -63,6 +77,11 @@ void init_system() {
   ds1307_set_time(&currentTime); 
 }
 
+/**
+ * Get current time from DS1307
+ * 
+ * @param rtc_time - pointer to RTC_time_t struct 
+ */
 void ds1307_get_time(RTC_time_t* rtc_time)
 {
   TinyWireM.beginTransmission(DS1307_ADDR); // Reset DS1307 register pointer
@@ -88,6 +107,11 @@ void ds1307_get_time(RTC_time_t* rtc_time)
   #endif
 }
 
+/**
+ * Set desired time to DS1307
+ * 
+ * @param rtc_time - pointer to RTC_time_t struct 
+ */
 void ds1307_set_time(RTC_time_t* rtc_time) {
   TinyWireM.beginTransmission(DS1307_ADDR); 
   TinyWireM.send(0x00); // Point to seconds regsiter 
@@ -97,12 +121,24 @@ void ds1307_set_time(RTC_time_t* rtc_time) {
   TinyWireM.endTransmission(); 
 }
 
-// Convert binary coded decimal to normal decimal numbers
+
+/**
+ * Convert binary coded decimal to normal decimal numbers
+ * 
+ * @param val - binary coded decimal number
+ * @return - normal decimal number 
+ */
 uint8_t bcdToDec(uint8_t val) {
   return ((val / 16 * 10) + (val % 16));
 }
 
-// Convert normal decimal numbers decimal to binary coded
+
+/**
+ * Convert normal decimal numbers to binary coded decimal
+ * 
+ * @param val - normal decimal number
+ * @return - binary coded decimal number 
+ */
 uint8_t decToBcd(uint8_t val) { 
   return ((val / 10 * 16) + (val % 10)); 
 }
